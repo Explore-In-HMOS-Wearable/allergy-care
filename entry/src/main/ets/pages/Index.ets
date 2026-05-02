@@ -1,250 +1,269 @@
+import { vibrator } from '@kit.SensorServiceKit';
+import { AllergyViewModel } from '../viewmodel/AllergyViewModel';
+import { NotificationService } from '../services/NotificationService';
+import { ReminderService } from '../services/ReminderService';
+import { common } from '@kit.AbilityKit';
+
 @Entry
 @Component
 struct AllergyHealthPage {
+  @State viewModel: AllergyViewModel = new AllergyViewModel();
 
+  aboutToAppear() {
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    this.viewModel.init(context);
+  }
 
-
-  // Pollen
-  @State pollenLevel: string = 'Low';
-
-  // Medication
-  @State medRemaining: number = 0;
-  @State medActive: boolean = false;
-  private medTimer?: number;
-
-  // Symptom
-  @State symptomLevel: number = 0;
-
-  // Breathing
-  @State breathingText: string = 'Ready';
-  @State isBreathing: boolean = false;
-  @State breathScale: number = 0.6;
-  @State pulseScale: number = 0.6;
-
-  private breathTimer?: number;
-  private pulseTimer?: number;
-  private breathStep: number = 0;
-
-
+  aboutToDisappear() {
+    this.viewModel.stopBreathing();
+    this.viewModel.stopMedication();
+  }
 
   build() {
-    Scroll(){
-      Column({ space: 12 }) {
-
-
-        Text('Allergy Care')
-          .fontSize(20)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#601f9e')
-
-        //Pollen
-        Text('Pollen')
-          .fontSize(14)
-          .fontColor('#f7e194')
-
-        Row({ space: 6 }) {
-          this.pollenButton('Low')
-          this.pollenButton('Mid')
-          this.pollenButton('High')
+    List({ space: 12 }) {
+      ListItem() {
+        Column({ space: 8 }) {
+          Text($r('app.string.app_title'))
+            .fontSize(24)
+            .fontWeight(FontWeight.Bold)
+            .fontColor($r('app.color.title_color'))
+            .margin({ top: 20 })
         }
-
-        if (this.pollenLevel === 'High') {
-          Text('Avoid outdoor activities')
-            .fontSize(12)
-            .fontColor(Color.Red)
-        }
-        Divider()
-        //Medication
-        Text('Medication Reminder')
-          .fontColor('#f7e194')
-          .fontSize(14)
-          .margin({ top: 6 })
-
-        if (!this.medActive) {
-          Button('Set to 30m')
-            .borderRadius(18)
-            .backgroundColor(Color.Green)
-            .width(100)
-            .height(36)
-            .onClick(() => this.startMedication())
-        } else {
-          Text(`${Math.floor(this.medRemaining / 60)}m ${this.medRemaining % 60}s`)
-            .fontSize(16)
-        }
-
-        Divider()
-
-        //Symptoms
-        Text('Symptoms')
-          .fontColor('#f7e194')
-          .fontSize(14)
-          .margin({ top: 6 })
-
-
-        Slider({
-          value: this.symptomLevel,
-          min: 0,
-          max: 10,
-          step: 1
-        })
-          .width('70%')
-          .onChange(v => this.symptomLevel = v)
-
-        Text(`Level ${this.symptomLevel}`)
-          .fontSize(12)
-          .fontColor(this.symptomColor())
-
-        Divider()
-
-        //Breathing
-        Text('Breathing')
-          .fontWeight(FontWeight.Medium)
-          .opacity(0.85)
-          .fontColor('#f7e194')
-          .fontSize(14)
-          .margin({ top: 6 })
-
-        this.BreathingCircle()
-
-        Text(this.breathingText)
-          .fontSize(16)
-
-        Button('Start')
-          .width(70)
-          .height(32)
-          .onClick(() => this.startBreathing())
-
-        Button('Stop')
-          .width(70)
-          .height(32)
-          .backgroundColor('#B71C1C')
-          .onClick(() => this.stopBreathing())
-
+        .width('100%')
       }
-      .width('85%')
-      .padding({ top: 20, bottom: 7, left: 33 })
-      .alignItems(HorizontalAlign.Center)
-      .borderRadius(16)
+
+      // Pollen Section
+      ListItem() {
+        PollenSection({ viewModel: this.viewModel })
+      }
+
+      ListItem() { Divider().strokeWidth(1).color('#333') }
+
+      // Medication Section
+      ListItem() {
+        MedicationSection({ viewModel: this.viewModel })
+      }
+
+      ListItem() { Divider().strokeWidth(1).color('#333') }
+
+      // Symptoms Section
+      ListItem() {
+        SymptomSection({ viewModel: this.viewModel })
+      }
+
+      ListItem() { Divider().strokeWidth(1).color('#333') }
+
+      // Breathing Section
+      ListItem() {
+        BreathingSection({
+          viewModel: this.viewModel,
+          triggerHaptic: (effect: string): void => this.triggerHaptic(effect)
+        })
+      }
+    }
+    .width('100%')
+    .height('100%')
+    .alignListItem(ListItemAlign.Center)
+  }
+
+  triggerHaptic(effect: string) {
+    try {
+      vibrator.startVibration({
+        type: 'preset',
+        effectId: effect,
+        count: 1
+      }, {
+        usage: 'alarm'
+      }, (error) => {
+        if (error) {
+          console.error(`Vibration failed. Code: ${error.code}, message: ${error.message}`);
+          return;
+        }
+        console.info('Vibration succeeded.');
+      });
+    } catch (err) {
+      console.error(`An unexpected error occurred. Code: ${err.code}, message: ${err.message}`);
     }
   }
-  //Builders
+}
+
+@Component
+struct PollenSection {
+  @ObjectLink viewModel: AllergyViewModel;
+
+  build() {
+    Column({ space: 8 }) {
+      Text($r('app.string.pollen_label'))
+        .fontSize(16)
+        .fontColor($r('app.color.section_title_color'))
+
+      Row({ space: 10 }) {
+        this.pollenButton('Low', $r('app.string.pollen_low'))
+        this.pollenButton('Mid', $r('app.string.pollen_mid'))
+        this.pollenButton('High', $r('app.string.pollen_high'))
+      }
+
+      if (this.viewModel.pollenLevel === 'High') {
+        Text($r('app.string.pollen_warning_high'))
+          .fontSize(14)
+          .fontColor($r('app.color.error_color'))
+          .textAlign(TextAlign.Center)
+      }
+    }
+    .width('100%')
+  }
 
   @Builder
-  pollenButton(level: string) {
-    Button(level.charAt(0))
-      .width(44)
-      .height(32)
-      .borderRadius(14)
-      .fontSize(12)
-      .backgroundColor(this.pollenLevel === level ? '#4CAF50' : '#333')
-      .onClick(() => this.pollenLevel = level)
+  pollenButton(level: string, label: Resource) {
+    Button(label)
+      .width(50)
+      .height(40)
+      .borderRadius(16)
+      .fontSize(8)
+      .backgroundColor(this.viewModel.pollenLevel === level ? $r('app.color.active_pollen_color') : $r('app.color.inactive_pollen_color'))
+      .onClick(() => {
+        this.viewModel.setPollenLevel(level);
+        if (level === 'High') {
+          NotificationService.getInstance().publishPollenAlert();
+        } else {
+          NotificationService.getInstance().cancelAlert();
+        }
+      })
+  }
+}
+
+@Component
+struct MedicationSection {
+  @ObjectLink viewModel: AllergyViewModel;
+
+  build() {
+    Column({ space: 8 }) {
+      Text($r('app.string.medication_reminder_label'))
+        .fontColor($r('app.color.section_title_color'))
+        .fontSize(16)
+
+      if (!this.viewModel.medActive) {
+        Button($r('app.string.medication_set_timer'))
+          .borderRadius(20)
+          .backgroundColor($r('app.color.success_color'))
+          .width(120)
+          .height(40)
+          .onClick(() => {
+            this.viewModel.startMedication();
+            ReminderService.getInstance().addMedicationReminder(30 * 60);
+          })
+      } else {
+        Column({ space: 4 }) {
+          Text(`${Math.floor(this.viewModel.medRemaining / 60)}m ${this.viewModel.medRemaining % 60}s`)
+            .fontSize(18)
+            .fontWeight(FontWeight.Medium)
+
+          Button('Reset')
+            .fontSize(12)
+            .height(24)
+            .onClick(() => {
+              this.viewModel.stopMedication();
+              ReminderService.getInstance().cancelReminder();
+            })
+        }
+      }
+    }
+    .width('100%')
+  }
+}
+
+@Component
+struct SymptomSection {
+  @ObjectLink viewModel: AllergyViewModel;
+
+  build() {
+    Column({ space: 8 }) {
+      Text($r('app.string.symptoms_label'))
+        .fontColor($r('app.color.section_title_color'))
+        .fontSize(16)
+
+      Slider({
+        value: this.viewModel.symptomLevel,
+        min: 0,
+        max: 10,
+        step: 1
+      })
+        .width('80%')
+        .onChange(v => this.viewModel.setSymptomLevel(v))
+
+      Text($r('app.string.level_label', this.viewModel.symptomLevel))
+        .fontSize(14)
+        .fontColor(this.symptomColor())
+    }
+    .width('100%')
+  }
+
+  symptomColor(): Resource {
+    if (this.viewModel.symptomLevel <= 3) { return $r('app.color.success_color') }
+    if (this.viewModel.symptomLevel <= 6) { return $r('app.color.warning_color') }
+    return $r('app.color.error_color');
+  }
+}
+
+@Component
+struct BreathingSection {
+  @ObjectLink viewModel: AllergyViewModel;
+  triggerHaptic: (effect: string) => void = () => {};
+
+  build() {
+    Column({ space: 12 }) {
+      Text($r('app.string.breathing_label'))
+        .fontWeight(FontWeight.Medium)
+        .fontColor($r('app.color.section_title_color'))
+        .fontSize(16)
+
+      this.BreathingCircle()
+
+      Text(this.viewModel.breathingText)
+        .fontSize(18)
+        .fontWeight(FontWeight.Medium)
+
+      Row({ space: 12 }) {
+        Button($r('app.string.start_label'))
+          .width(80)
+          .height(36)
+          .onClick(() => this.viewModel.startBreathing(this.triggerHaptic))
+
+        Button($r('app.string.stop_label'))
+          .width(80)
+          .height(36)
+          .backgroundColor($r('app.color.stop_button_color'))
+          .onClick(() => this.viewModel.stopBreathing())
+      }
+      .margin({ bottom: 40 })
+    }
+    .width('100%')
   }
 
   @Builder
   BreathingCircle() {
     Stack() {
-
-      // Pulse ring
       Circle()
         .width(110)
         .height(110)
-        .stroke(Color.Blue)
+        .stroke($r('app.color.pulse_color'))
         .strokeWidth(3)
         .opacity(0.4)
-        .scale({ x: this.pulseScale, y: this.pulseScale })
+        .scale({ x: this.viewModel.pulseScale, y: this.viewModel.pulseScale })
         .animation({
           duration: 1500,
           curve: Curve.EaseOut
         })
 
-      // Main breathing circle
       Circle()
         .width(120)
         .height(120)
-        .fill(Color.Green)
-        .scale({ x: this.breathScale, y: this.breathScale })
+        .fill($r('app.color.success_color'))
+        .scale({ x: this.viewModel.breathScale, y: this.viewModel.breathScale })
         .animation({
           duration: 4000,
           curve: Curve.EaseInOut
         })
     }
-
-  }
-
-  //Functions
-
-  startMedication() {
-    this.medRemaining = 30 * 60;
-    this.medActive = true;
-    clearInterval(this.medTimer);
-
-    this.medTimer = setInterval(() => {
-      if (this.medRemaining > 0) {
-        this.medRemaining--;
-      } else {
-        clearInterval(this.medTimer);
-        this.medActive = false;
-        console.info('Take your medication');
-      }
-    }, 1000);
-  }
-
-  symptomColor(): Color {
-    if (this.symptomLevel <= 3) {return Color.Green}
-    if (this.symptomLevel <= 6) {return Color.Orange}
-    return Color.Red;
-  }
-
-  startBreathing() {
-    if (this.isBreathing){
-      return;
-    }
-
-    this.isBreathing = true;
-    this.breathingText = 'Inhale'
-    this.breathScale = 1.0;
-
-    clearInterval(this.breathTimer);
-    clearInterval(this.pulseTimer);
-
-    this.breathStep = 0;
-
-    //Breathing cycle
-    this.breathTimer = setInterval(() => {
-      switch (this.breathStep % 3) {
-        case 0:
-          this.breathingText = 'Inhale';
-          this.breathScale = 1.0;
-          break;
-        case 1:
-          this.breathingText = 'Hold';
-          this.breathScale = 1.0;
-          break;
-        case 2:
-          this.breathingText = 'Exhale';
-          this.breathScale = 0.6;
-          break;
-      }
-      this.breathStep++;
-    }, 4000);
-
-    //Pulse effect
-    this.pulseTimer = setInterval(() => {
-      this.pulseScale = 1.2;
-      setTimeout(() => {
-        this.pulseScale = this.breathScale;
-      }, 300);
-    }, 1500);
-  }
-
-  stopBreathing(){
-    this.isBreathing = false;
-
-    clearInterval(this.breathTimer);
-    clearInterval(this.pulseTimer);
-
-    this.breathingText = 'Ready';
-    this.breathScale = 0.6;
-    this.pulseScale = 0.6
   }
 }

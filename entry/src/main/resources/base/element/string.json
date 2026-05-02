@@ -11,6 +11,30 @@
     {
       "name": "EntryAbility_label",
       "value": "label"
-    }
+    },
+    {
+      "name": "app_title",
+      "value": "Allergy Care"
+    },
+    {
+      "name": "pollen_label",
+      "value": "Pollen"
+    },
+    {
+      "name": "pollen_low", "value": "Low" },
+    { "name": "pollen_mid", "value": "Mid" },
+    { "name": "pollen_high", "value": "High" },
+    { "name": "pollen_warning_high", "value": "Avoid outdoor activities" },
+    { "name": "medication_reminder_label", "value": "Medication Reminder" },
+    { "name": "medication_set_timer", "value": "Set to 30m" },
+    { "name": "symptoms_label", "value": "Symptoms" },
+    { "name": "level_label", "value": "Level %d" },
+    { "name": "breathing_label", "value": "Breathing" },
+    { "name": "start_label", "value": "Start" },
+    { "name": "stop_label", "value": "Stop" },
+    { "name": "ready_label", "value": "Ready" },
+    { "name": "inhale_label", "value": "Inhale" },
+    { "name": "hold_label", "value": "Hold" },
+    { "name": "exhale_label", "value": "Exhale" }
   ]
 }
